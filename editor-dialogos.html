@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>🎭 Editor Visual Novel Open Source – Projeto/Episódios/Cenas/Diálogos</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+      :root {
+        --bg: #fafafa;
+        --card: #fff;
+        --muted: #e9ecef;
+        --line: #ddd;
+        --text: #222;
+        --accent: #007bff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: Inter, system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 32px;
+      }
+      h2,
+      h3,
+      h4 {
+        margin: 0 0 12px;
+      }
+      .row {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      .col {
+        flex: 1 1 420px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px;
+      }
+      .section {
+        background: var(--muted);
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 16px;
+      }
+      label {
+        display: block;
+        font-weight: 600;
+        margin: 10px 0 6px;
+      }
+      input,
+      textarea,
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      textarea {
+        min-height: 90px;
+      }
+      button {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 9px 14px;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #6c757d;
+      }
+      button.danger {
+        background: #dc3545;
+      }
+      button.success {
+        background: #28a745;
+      }
+      button.light {
+        background: #f0f0f0;
+        color: #111;
+        border: 1px solid #ccc;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .row-items {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .pill {
+        padding: 6px 10px;
+        border: 1px solid #ccc;
+        border-radius: 999px;
+        background: #f8f9fa;
+      }
+      .small {
+        font-size: 12px;
+        opacity: 0.8;
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .grid-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+      }
+      .divider {
+        height: 1px;
+        background: var(--line);
+        margin: 12px 0;
+      }
+      .scroll {
+        max-height: 460px;
+        overflow: auto;
+      }
+      .jsonbox {
+        background: #f4f4f4;
+        border-radius: 8px;
+        padding: 12px;
+        overflow: auto;
+      }
+      .item {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px;
+        background: #fff;
+      }
+      .clickable {
+        cursor: pointer;
+      }
+      .active {
+        outline: 2px solid var(--accent);
+      }
+      .char-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: space-between;
+      }
+      .chip {
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #ddd;
+        background: #fff;
+        cursor: pointer;
+      }
+      .chip.active {
+        border-color: var(--accent);
+        background: #e7f3ff;
+      }
+      .muted {
+        color: #666;
+      }
+      .choice-box {
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 10px;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>🎬 Editor de Visual Novel — Projeto, Episódios, Cenas & Diálogos</h2>
+
+    <!-- Cabeçalho -->
+    <div class="section">
+      <div class="row" style="align-items: end">
+        <div class="col">
+          <label>Título do Projeto</label>
+          <input
+            id="project-title"
+            placeholder="Ex.: Meu Namorado é um Vampiro (Mas Ele Brilha Pouco)"
+          />
+        </div>
+        <div
+          class="col"
+          style="
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+          "
+        >
+          <select
+            id="novel-select"
+            style="
+              min-width: 220px;
+              padding: 8px;
+              border-radius: 8px;
+              border: 1px solid #ccc;
+            "
+          >
+            <option value="">Selecione uma novel...</option>
+          </select>
+          <button id="btn-save">💾 Salvar</button>
+          <button id="btn-load" class="secondary">📂 Carregar</button>
+          <button id="btn-preview" class="light">▶️ Preview</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- Mundo: variáveis, flags, inventário + Personagens -->
+      <div class="col">
+        <div class="card stack">
+          <h3>🌍 Mundo (Variáveis Globais)</h3>
+          <div class="grid-3">
+            <input
+              id="global-name"
+              placeholder="Nome do atributo (ex: confiança)"
+            />
+            <input
+              id="global-value"
+              type="number"
+              placeholder="Valor inicial (ex: 0)"
+            />
+            <button id="btn-add-global" class="success">+ Adicionar</button>
+          </div>
+          <div id="globals-list" class="list"></div>
+          <div class="divider"></div>
+
+          <h3>🎯 Flags (globais)</h3>
+          <div class="grid-3">
+            <input id="flag-name" placeholder="nome_da_flag (ex: viu_intro)" />
+            <select id="flag-value">
+              <option value="false">false</option>
+              <option value="true">true</option>
+            </select>
+            <button id="btn-add-flag" class="success">+ Adicionar</button>
+          </div>
+          <div id="flags-list" class="list"></div>
+          <div class="divider"></div>
+
+          <h3>🎒 Inventário (global)</h3>
+          <div class="grid-2">
+            <input id="item-name" placeholder="Ex.: colar antigo" />
+            <button id="btn-add-item" class="success">+ Adicionar</button>
+          </div>
+          <div id="inventory-list" class="list"></div>
+        </div>
+
+        <div class="card stack">
+          <h3>👥 Personagens</h3>
+          <div class="grid-3">
+            <input id="char-name" placeholder="Nome (ex: Luna)" />
+            <input id="char-exp" placeholder="Expressão padrão (ex: feliz)" />
+            <button id="btn-add-char" class="success">+ Adicionar</button>
+          </div>
+          <div id="chars-list" class="list scroll"></div>
+        </div>
+      </div>
+
+      <!-- Episódios, Cenas, Diálogos -->
+      <div class="col">
+        <div class="card stack">
+          <h3>📖 Episódios</h3>
+          <div class="grid-2">
+            <input
+              id="episode-title"
+              placeholder="Título do episódio (ex: Capítulo 1 — O Encontro)"
+            />
+            <button id="btn-add-episode" class="success">
+              + Adicionar Episódio
+            </button>
+          </div>
+          <div id="episodes-list" class="list scroll"></div>
+          <div
+            class="row"
+            style="justify-content: space-between; align-items: center"
+          >
+            <div class="muted small">
+              Episódio ativo:
+              <span id="active-episode-label" class="pill">—</span>
+            </div>
+            <button id="btn-remove-episode" class="danger">
+              🗑️ Remover Episódio
+            </button>
+          </div>
+        </div>
+
+        <div class="card stack">
+          <h3>🎬 Cenas (no episódio ativo)</h3>
+          <div class="grid-2">
+            <input
+              id="scene-title"
+              placeholder="Título da cena (ex: Encontro no Café)"
+            />
+            <button id="btn-add-scene" class="success">+ Adicionar Cena</button>
+          </div>
+          <div id="scenes-list" class="list scroll"></div>
+          <div
+            class="row"
+            style="justify-content: space-between; align-items: center"
+          >
+            <div class="muted small">
+              Cena ativa: <span id="active-scene-label" class="pill">—</span>
+            </div>
+            <button id="btn-remove-scene" class="danger">
+              🗑️ Remover Cena
+            </button>
+          </div>
+        </div>
+
+        <div class="card stack">
+          <h3>💬 Diálogo (Cena Ativa)</h3>
+          <label>Personagem ativo</label>
+          <div id="char-buttons" class="row"></div>
+
+          <label>Expressão / Emoção</label>
+          <input id="dialog-exp" placeholder="Ex: feliz, nervosa..." />
+
+          <label>Fala</label>
+          <textarea id="dialog-line" placeholder="Digite a fala..."></textarea>
+
+          <h4>Opções do Jogador</h4>
+          <div id="choices" class="stack"></div>
+          <button id="btn-add-choice" class="light">+ Adicionar escolha</button>
+          <button id="btn-add-dialog" style="margin-top: 8px">
+            ➕ Adicionar fala
+          </button>
+
+          <div class="divider"></div>
+          <h4>🗨️ Falas da Cena</h4>
+          <div id="dialogues-list" class="list scroll"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px">
+      <h3>📦 JSON atual</h3>
+      <pre id="saida" class="jsonbox">{}</pre>
+    </div>
+
+    <script>
+      /* ===========================
+   CONFIG SUPABASE
+=========================== */
+      const SUPABASE_URL = "URL do seu SUPABASE";
+      const SUPABASE_KEY = "chave do seu supabase";
+      const TABLE_NAME = "nome da sua tabela"; // sua tabela atual
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      /* ===========================
+   ESTADO GLOBAL
+=========================== */
+      let projeto = {
+        projectTitle: "",
+        globals: { variables: {}, flags: {}, inventory: [] },
+        characters: [],
+        episodes: [],
+      };
+      let activeEpisodeIndex = -1;
+      let activeSceneIndex = -1;
+      let activeCharacter = null;
+      const $ = (id) => document.getElementById(id);
+
+      /* ===========================
+   UTILS E RENDER JSON
+=========================== */
+      function slugify(t) {
+        return (t || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "");
+      }
+      function ensureStructure() {
+        projeto.globals = projeto.globals || {
+          variables: {},
+          flags: {},
+          inventory: [],
+        };
+        projeto.globals.variables = projeto.globals.variables || {};
+        projeto.globals.flags = projeto.globals.flags || {};
+        projeto.globals.inventory = projeto.globals.inventory || [];
+        projeto.characters = projeto.characters || [];
+        // migração: se houver scenes na raiz, empacotar em um episódio
+        if (!projeto.episodes || !Array.isArray(projeto.episodes))
+          projeto.episodes = [];
+        if (!projeto.episodes.length && Array.isArray(projeto.scenes)) {
+          projeto.episodes.push({
+            id: "ep1",
+            title: "Episódio 1",
+            scenes: JSON.parse(JSON.stringify(projeto.scenes)),
+          });
+          delete projeto.scenes;
+        }
+      }
+      function renderJSON() {
+        $("saida").textContent = JSON.stringify(projeto, null, 2);
+      }
+
+      /* ===========================
+   RENDER: GLOBAIS / FLAGS / INVENTÁRIO
+=========================== */
+      function renderGlobals() {
+        const wrap = $("globals-list");
+        wrap.innerHTML = "";
+        for (const [key, val] of Object.entries(
+          projeto.globals.variables || {}
+        )) {
+          const row = document.createElement("div");
+          row.className = "item";
+          row.innerHTML = `<div class="row-items"><strong>${key}</strong><input type="number" value="${val}" style="max-width:120px;margin-left:auto;"><button class="danger">Remover</button></div>`;
+          row.querySelector("input").oninput = (e) => {
+            projeto.globals.variables[key] = Number(e.target.value);
+            renderJSON();
+          };
+          row.querySelector("button").onclick = () => {
+            delete projeto.globals.variables[key];
+            renderGlobals();
+            renderJSON();
+          };
+          wrap.appendChild(row);
+        }
+      }
+      function renderFlags() {
+        const wrap = $("flags-list");
+        wrap.innerHTML = "";
+        for (const [key, val] of Object.entries(projeto.globals.flags || {})) {
+          const row = document.createElement("div");
+          row.className = "item";
+          row.innerHTML = `<div class="row-items"><strong>${key}</strong><select class="fsel" style="max-width:120px;margin-left:auto;"><option value="false">false</option><option value="true">true</option></select><button class="danger">Remover</button></div>`;
+          const sel = row.querySelector(".fsel");
+          sel.value = String(!!val);
+          sel.onchange = () => {
+            projeto.globals.flags[key] = sel.value === "true";
+            renderJSON();
+          };
+          row.querySelector("button").onclick = () => {
+            delete projeto.globals.flags[key];
+            renderFlags();
+            renderJSON();
+          };
+          wrap.appendChild(row);
+        }
+      }
+      function renderInventory() {
+        const wrap = $("inventory-list");
+        wrap.innerHTML = "";
+        (projeto.globals.inventory || []).forEach((it, idx) => {
+          const row = document.createElement("div");
+          row.className = "item";
+          row.innerHTML = `<div class="row-items"><span>${it}</span><button class="danger" style="margin-left:auto;">Remover</button></div>`;
+          row.querySelector("button").onclick = () => {
+            projeto.globals.inventory.splice(idx, 1);
+            renderInventory();
+            renderJSON();
+          };
+          wrap.appendChild(row);
+        });
+      }
+
+      /* ===========================
+   RENDER: PERSONAGENS
+=========================== */
+      function renderCharacters() {
+        const list = $("chars-list");
+        list.innerHTML = "";
+        projeto.characters.forEach((c, idx) => {
+          const box = document.createElement("div");
+          box.className = "item";
+          box.innerHTML = `<div class="char-head"><div class="row-items"><span class="pill">#${
+            idx + 1
+          }</span><span class="small muted">Clique no chip para ativar</span></div><button class="danger">Remover</button></div><div class="grid-3" style="margin-top:8px;"><input class="c-name" value="${
+            c.name || ""
+          }" placeholder="Nome"/><input class="c-exp" value="${
+            c.expression || ""
+          }" placeholder="Expressão padrão"/><button class="chip ${
+            activeCharacter === c.name ? "active" : ""
+          }">Ativar: ${c.name || "—"}</button></div>`;
+          box.querySelector(".chip").onclick = () => {
+            activeCharacter = c.name;
+            renderCharButtons();
+            renderCharacters();
+          };
+          box.querySelector(".danger").onclick = () => {
+            projeto.characters.splice(idx, 1);
+            renderCharacters();
+            renderCharButtons();
+            renderJSON();
+          };
+          box.querySelector(".c-name").oninput = (e) => {
+            c.name = e.target.value.trim();
+            renderCharButtons();
+            renderJSON();
+          };
+          box.querySelector(".c-exp").oninput = (e) => {
+            c.expression = e.target.value.trim();
+            renderJSON();
+          };
+          list.appendChild(box);
+        });
+      }
+      function renderCharButtons() {
+        const bar = $("char-buttons");
+        bar.innerHTML = "";
+        projeto.characters.forEach((c) => {
+          const b = document.createElement("button");
+          b.className = "chip " + (activeCharacter === c.name ? "active" : "");
+          b.textContent = c.name || "—";
+          b.onclick = () => {
+            activeCharacter = c.name;
+            renderCharButtons();
+          };
+          bar.appendChild(b);
+        });
+      }
+
+      /* ===========================
+   RENDER: EPISÓDIOS / CENAS / DIÁLOGOS
+=========================== */
+      function renderEpisodesList() {
+        const list = $("episodes-list");
+        list.innerHTML = "";
+        projeto.episodes.forEach((ep, idx) => {
+          const item = document.createElement("div");
+          item.className =
+            "item clickable " + (idx === activeEpisodeIndex ? "active" : "");
+          item.innerHTML = `<div class="row" style="align-items:center;"><div class="col"><strong>${
+            ep.title || "(sem título)"
+          }</strong></div><div class="col" style="text-align:right;"><button class="light rename">Renomear</button></div></div>`;
+          item.onclick = (e) => {
+            if (e.target.classList.contains("rename")) return;
+            activeEpisodeIndex = idx;
+            $("active-episode-label").textContent = ep.title || "(sem título)";
+            // reset cena ativa ao trocar de episódio
+            activeSceneIndex = -1;
+            $("active-scene-label").textContent = "—";
+            renderEpisodesList();
+            renderScenesList();
+            renderDialogues();
+          };
+          item.querySelector(".rename").onclick = () => {
+            const novo = prompt("Novo título do episódio:", ep.title || "");
+            if (novo !== null) {
+              ep.title = novo.trim();
+              if (idx === activeEpisodeIndex) {
+                $("active-episode-label").textContent =
+                  ep.title || "(sem título)";
+              }
+              renderEpisodesList();
+              renderJSON();
+            }
+          };
+          list.appendChild(item);
+        });
+        if (activeEpisodeIndex < 0 && projeto.episodes.length > 0) {
+          activeEpisodeIndex = 0;
+          $("active-episode-label").textContent =
+            projeto.episodes[0].title || "(sem título)";
+        }
+      }
+      function renderScenesList() {
+        const list = $("scenes-list");
+        list.innerHTML = "";
+        const ep = projeto.episodes[activeEpisodeIndex];
+        if (!ep) {
+          list.innerHTML = `<div class="muted small">Nenhum episódio ativo.</div>`;
+          return;
+        }
+        ep.scenes = ep.scenes || [];
+        ep.scenes.forEach((sc, idx) => {
+          const item = document.createElement("div");
+          item.className =
+            "item clickable " + (idx === activeSceneIndex ? "active" : "");
+          item.innerHTML = `<div class="row"><div class="col"><strong>${
+            sc.title || "(sem título)"
+          }</strong></div><div class="col" style="text-align:right;"><button class="light rename">Renomear</button></div></div>`;
+          item.onclick = (e) => {
+            if (e.target.classList.contains("rename")) return;
+            activeSceneIndex = idx;
+            $("active-scene-label").textContent = sc.title || "(sem título)";
+            renderScenesList();
+            renderDialogues();
+          };
+          item.querySelector(".rename").onclick = () => {
+            const novo = prompt("Novo título da cena:", sc.title || "");
+            if (novo !== null) {
+              sc.title = novo.trim();
+              if (idx === activeSceneIndex) {
+                $("active-scene-label").textContent =
+                  sc.title || "(sem título)";
+              }
+              renderScenesList();
+              renderJSON();
+            }
+          };
+          list.appendChild(item);
+        });
+        if (activeSceneIndex < 0 && ep.scenes.length > 0) {
+          activeSceneIndex = 0;
+          $("active-scene-label").textContent =
+            ep.scenes[0].title || "(sem título)";
+        } else if (ep.scenes.length === 0) {
+          $("active-scene-label").textContent = "—";
+        }
+      }
+      function renderDialogues() {
+        const list = $("dialogues-list");
+        list.innerHTML = "";
+        const ep = projeto.episodes[activeEpisodeIndex];
+        if (!ep) {
+          list.innerHTML = `<div class="muted small">Nenhum episódio ativo.</div>`;
+          return;
+        }
+        const sc = ep.scenes?.[activeSceneIndex];
+        if (!sc) {
+          list.innerHTML = `<div class="muted small">Nenhuma cena ativa.</div>`;
+          return;
+        }
+        (sc.dialogues || []).forEach((d, i) => {
+          const el = document.createElement("div");
+          el.className = "item";
+          el.innerHTML = `<div class="row" style="align-items:center;"><div class="col"><strong>${
+            i + 1
+          }.</strong> ${d.character}: ${
+            d.line || ""
+          }</div><div class="col" style="text-align:right;"><button class="danger">Remover</button></div></div>${
+            d.expression
+              ? `<div class="small muted">Expressão: ${d.expression}</div>`
+              : ""
+          }<div class="small muted">${
+            d.choices ? `Escolhas: ${d.choices.length}` : "Sem escolhas"
+          }</div>`;
+          el.querySelector(".danger").onclick = () => {
+            sc.dialogues.splice(i, 1);
+            renderDialogues();
+            renderJSON();
+          };
+          list.appendChild(el);
+        });
+      }
+
+      /* ===========================
+   AÇÕES: MUNDO
+=========================== */
+      $("btn-add-global").onclick = () => {
+        const name = $("global-name").value.trim();
+        const val = Number($("global-value").value);
+        if (!name) return alert("Informe nome.");
+        projeto.globals.variables[name] = isNaN(val) ? 0 : val;
+        $("global-name").value = "";
+        $("global-value").value = "";
+        renderGlobals();
+        renderJSON();
+      };
+      $("btn-add-flag").onclick = () => {
+        const name = $("flag-name").value.trim();
+        const v = $("flag-value").value === "true";
+        if (!name) return alert("Informe o nome da flag.");
+        projeto.globals.flags[name] = v;
+        $("flag-name").value = "";
+        $("flag-value").value = "false";
+        renderFlags();
+        renderJSON();
+      };
+      $("btn-add-item").onclick = () => {
+        const it = $("item-name").value.trim();
+        if (!it) return;
+        projeto.globals.inventory.push(it);
+        $("item-name").value = "";
+        renderInventory();
+        renderJSON();
+      };
+
+      /* ===========================
+   AÇÕES: PERSONAGENS
+=========================== */
+      $("btn-add-char").onclick = () => {
+        const n = $("char-name").value.trim();
+        const e = $("char-exp").value.trim();
+        if (!n) return alert("Informe nome.");
+        projeto.characters.push({ name: n, expression: e || "" });
+        $("char-name").value = "";
+        $("char-exp").value = "";
+        if (!activeCharacter) activeCharacter = n;
+        renderCharacters();
+        renderCharButtons();
+        renderJSON();
+      };
+
+      /* ===========================
+   AÇÕES: EPISÓDIOS / CENAS
+=========================== */
+      $("btn-add-episode").onclick = () => {
+        const t = $("episode-title").value.trim() || "Episódio";
+        const id = slugify(t) || `ep${projeto.episodes.length + 1}`;
+        projeto.episodes.push({ id, title: t, scenes: [] });
+        $("episode-title").value = "";
+        activeEpisodeIndex = projeto.episodes.length - 1;
+        $("active-episode-label").textContent = t;
+        activeSceneIndex = -1;
+        $("active-scene-label").textContent = "—";
+        renderEpisodesList();
+        renderScenesList();
+        renderJSON();
+      };
+      $("btn-remove-episode").onclick = () => {
+        if (activeEpisodeIndex < 0) return alert("Nenhum episódio ativo.");
+        const t = projeto.episodes[activeEpisodeIndex].title || "(sem título)";
+        if (!confirm(`Remover o episódio "${t}"?`)) return;
+        projeto.episodes.splice(activeEpisodeIndex, 1);
+        activeEpisodeIndex = Math.min(
+          activeEpisodeIndex,
+          projeto.episodes.length - 1
+        );
+        $("active-episode-label").textContent =
+          projeto.episodes[activeEpisodeIndex]?.title || "—";
+        activeSceneIndex = -1;
+        $("active-scene-label").textContent = "—";
+        renderEpisodesList();
+        renderScenesList();
+        renderDialogues();
+        renderJSON();
+      };
+
+      $("btn-add-scene").onclick = () => {
+        if (activeEpisodeIndex < 0) return alert("Selecione um episódio.");
+        const t = $("scene-title").value.trim() || "(Sem título)";
+        const ep = projeto.episodes[activeEpisodeIndex];
+        ep.scenes = ep.scenes || [];
+        ep.scenes.push({
+          id: slugify(t) || `scene${ep.scenes.length + 1}`,
+          title: t,
+          dialogues: [],
+        });
+        $("scene-title").value = "";
+        activeSceneIndex = ep.scenes.length - 1;
+        $("active-scene-label").textContent = t;
+        renderScenesList();
+        renderDialogues();
+        renderJSON();
+      };
+      $("btn-remove-scene").onclick = () => {
+        if (activeEpisodeIndex < 0 || activeSceneIndex < 0)
+          return alert("Nenhuma cena ativa.");
+        const ep = projeto.episodes[activeEpisodeIndex];
+        ep.scenes.splice(activeSceneIndex, 1);
+        activeSceneIndex = Math.min(activeSceneIndex, ep.scenes.length - 1);
+        $("active-scene-label").textContent =
+          ep.scenes[activeSceneIndex]?.title || "—";
+        renderScenesList();
+        renderDialogues();
+        renderJSON();
+      };
+
+      /* ===========================
+   ESCOLHAS / DIÁLOGOS
+=========================== */
+      function parseCondition(t) {
+        if (!t) return null;
+        const o = {
+            ">": "gt",
+            "<": "lt",
+            ">=": "gte",
+            "<=": "lte",
+            "=": "eq",
+            "==": "eq",
+          },
+          c = {};
+        t.split(/[,;]/)
+          .map((p) => p.trim())
+          .forEach((p) => {
+            const m = p.match(
+              /^([\wçãéáíóúôê]+)\s*(>=|<=|==|=|>|<)\s*(-?\d+)$/i
+            );
+            if (m) {
+              const [, k, op, v] = m;
+              c[k] = { [o[op]]: Number(v) };
+            }
+          });
+        return Object.keys(c).length ? c : null;
+      }
+      function parseEffects(text) {
+        if (!text) return null;
+        const eff = {};
+        text
+          .split(/[,;]/)
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .forEach((p) => {
+            const m = p.match(/^([\wçãéáíóúôê]+)\s*([+-])\s*(\d+)$/i);
+            if (m) {
+              const [, key, op, val] = m;
+              const num = Number(val);
+              eff[key] = op === "+" ? num : -num;
+            }
+          });
+        return Object.keys(eff).length ? eff : null;
+      }
+
+      function addChoiceUI() {
+        const box = document.createElement("div");
+        box.className = "choice-box";
+        box.innerHTML = `<input class="c-text" placeholder="Texto da escolha"/>
+  <div class="grid-3" style="margin-top:6px;">
+    <input class="c-cond" placeholder="Condição (ex: confiança>=10)"/>
+    <input class="c-eff" placeholder="Efeito (ex: confiança+5, amor-20)"/>
+    <input class="c-next" type="number" placeholder="Próx índice"/>
+  </div>
+  <div class="grid-2" style="margin-top:6px;">
+    <input class="c-flag" placeholder="Flag (ex: encontrou_dimitri=true ou item_pego=false)"/>
+    <button class="danger">Remover</button>
+  </div>`;
+        box.querySelector(".danger").onclick = () => box.remove();
+        $("choices").appendChild(box);
+      }
+      $("btn-add-choice").onclick = addChoiceUI;
+
+      $("btn-add-dialog").onclick = () => {
+        if (activeEpisodeIndex < 0) return alert("Selecione um episódio.");
+        if (activeSceneIndex < 0) return alert("Selecione uma cena.");
+        if (!activeCharacter) return alert("Selecione um personagem.");
+        const l = $("dialog-line").value.trim();
+        if (!l) return alert("Digite a fala.");
+        const e = $("dialog-exp").value.trim() || null;
+        const choices = [...document.querySelectorAll("#choices .choice-box")]
+          .map((el) => {
+            const text = el.querySelector(".c-text").value.trim();
+            if (!text) return null;
+
+            const cond = parseCondition(
+              el.querySelector(".c-cond").value.trim()
+            );
+            const eff = parseEffects(el.querySelector(".c-eff").value.trim());
+            const nxt = el.querySelector(".c-next").value.trim();
+            const flagStr = el.querySelector(".c-flag").value.trim();
+
+            let flags = null;
+            if (flagStr) {
+              flags = {};
+              // aceita "flag=true", "flag=false", "flag=1", "flag=0"
+              flagStr
+                .split(/[,;]/)
+                .map((s) => s.trim())
+                .forEach((f) => {
+                  const m = f.match(
+                    /^([\w_çãéáíóúôê]+)\s*=\s*(true|false|-?\d+)$/i
+                  );
+                  if (m) {
+                    const [, key, val] = m;
+                    flags[key] =
+                      val === "true"
+                        ? true
+                        : val === "false"
+                        ? false
+                        : Number(val);
+                  }
+                });
+            }
+
+            return {
+              text,
+              condition: cond,
+              effects: eff,
+              flags,
+              next: nxt ? Number(nxt) : null,
+            };
+          })
+          .filter(Boolean);
+
+        const ep = projeto.episodes[activeEpisodeIndex];
+        const sc = ep.scenes[activeSceneIndex];
+        sc.dialogues.push({
+          character: activeCharacter,
+          expression: e,
+          line: l,
+          choices: choices.length ? choices : null,
+        });
+        $("dialog-line").value = "";
+        $("dialog-exp").value = "";
+        $("choices").innerHTML = "";
+        renderDialogues();
+        renderJSON();
+      };
+
+      /* ===========================
+   SALVAR / CARREGAR (SUPABASE)
+=========================== */
+      $("btn-save").onclick = async () => {
+        projeto.projectTitle =
+          $("project-title").value.trim() ||
+          projeto.projectTitle ||
+          "Sem título";
+        ensureStructure();
+        renderJSON();
+        const { error } = await supabase
+          .from(TABLE_NAME)
+          .insert([{ conteudo: projeto, novel: projeto.projectTitle }]);
+        if (error) alert("Erro:" + error.message);
+        else {
+          alert("✅ Projeto salvo!");
+          listarNovels();
+        }
+      };
+      async function listarNovels() {
+        const { data, error } = await supabase
+          .from(TABLE_NAME)
+          .select("novel")
+          .order("id", { ascending: false });
+        if (error) return;
+        const select = $("novel-select");
+        select.innerHTML = '<option value="">Selecione uma novel...</option>';
+        [...new Set((data || []).map((r) => r.novel))].forEach((n) => {
+          const o = document.createElement("option");
+          o.value = n;
+          o.textContent = n;
+          select.appendChild(o);
+        });
+      }
+      $("btn-load").onclick = async () => {
+        const s = $("novel-select").value.trim();
+        if (!s) return alert("Selecione uma novel.");
+        const { data, error } = await supabase
+          .from(TABLE_NAME)
+          .select("conteudo")
+          .eq("novel", s)
+          .order("id", { ascending: false })
+          .limit(1);
+        if (error) return alert("Erro: " + error.message);
+        if (!data?.length) return alert("Nada encontrado.");
+        projeto = data[0].conteudo || projeto;
+        ensureStructure();
+        $("project-title").value = projeto.projectTitle || s;
+        activeEpisodeIndex = -1;
+        activeSceneIndex = -1;
+        activeCharacter = null;
+        renderGlobals();
+        renderFlags();
+        renderInventory();
+        renderCharacters();
+        renderCharButtons();
+        renderEpisodesList();
+        renderScenesList();
+        renderDialogues();
+        renderJSON();
+        alert("📥 Projeto carregado!");
+      };
+
+      /* ===========================
+   INICIALIZAÇÃO
+=========================== */
+      document.addEventListener("DOMContentLoaded", () => {
+        ensureStructure();
+        renderGlobals();
+        renderFlags();
+        renderInventory();
+        renderCharacters();
+        renderCharButtons();
+        renderEpisodesList();
+        renderScenesList();
+        renderDialogues();
+        renderJSON();
+        listarNovels();
+      });
+    </script>
+
+    <!-- PREVIEW (usa episódio ativo) -->
+    <div
+      id="preview-modal"
+      style="
+        position: fixed;
+        inset: 0;
+        background: #000c;
+        color: white;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        z-index: 999;
+        font-family: Inter, system-ui, sans-serif;
+      "
+    >
+      <div
+        style="
+          max-width: 800px;
+          width: 90%;
+          padding: 24px 16px;
+          text-align: center;
+        "
+      >
+        <h2 id="preview-ep" style="margin-bottom: 6px"></h2>
+        <h3 id="preview-scene" style="margin-bottom: 8px; opacity: 0.9"></h3>
+        <p id="preview-line" style="font-size: 1.2em; min-height: 80px"></p>
+        <div
+          id="preview-hud"
+          style="
+            position: absolute;
+            right: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: flex-end;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+          "
+        ></div>
+        <div
+          id="preview-choices"
+          style="
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 16px;
+          "
+        ></div>
+        <div style="margin-top: 24px">
+          <button
+            id="preview-next"
+            style="
+              padding: 8px 18px;
+              border: none;
+              border-radius: 8px;
+              background: #007bff;
+              color: white;
+              cursor: pointer;
+            "
+          >
+            Próximo
+          </button>
+          <button
+            id="preview-exit"
+            style="
+              padding: 8px 18px;
+              border: none;
+              border-radius: 8px;
+              background: #dc3545;
+              color: white;
+              margin-left: 8px;
+              cursor: pointer;
+            "
+          >
+            Sair
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /* ===========================
+   MODO PREVIEW (EPISÓDIO ATIVO)
+=========================== */
+      const btnPreview = document.getElementById("btn-preview");
+      const elModal = document.getElementById("preview-modal");
+      const elPreviewEp = document.getElementById("preview-ep");
+      const elScene = document.getElementById("preview-scene");
+      const elLine = document.getElementById("preview-line");
+      const elChoices = document.getElementById("preview-choices");
+      const elNext = document.getElementById("preview-next");
+      const elExit = document.getElementById("preview-exit");
+
+      let pvSceneIdx = 0,
+        pvLineIdx = 0;
+      let pvVars = {};
+
+      btnPreview.onclick = () => {
+        if (activeEpisodeIndex < 0) {
+          if (!projeto.episodes?.length)
+            return alert("Nenhum episódio para jogar.");
+          activeEpisodeIndex = 0;
+        }
+        const ep = projeto.episodes[activeEpisodeIndex];
+        if (!ep?.scenes?.length)
+          return alert("O episódio ativo não tem cenas.");
+        pvVars = JSON.parse(JSON.stringify(projeto.globals?.variables || {}));
+        pvSceneIdx = 0;
+        pvLineIdx = 0;
+        elModal.style.display = "flex";
+        elPreviewEp.textContent = "Episódio: " + (ep.title || "(sem título)");
+        renderPreviewLine();
+      };
+
+      function renderPreviewLine() {
+        const ep = projeto.episodes[activeEpisodeIndex];
+        const sc = ep.scenes[pvSceneIdx];
+        const dialogues = sc.dialogues || [];
+
+        if (pvLineIdx >= dialogues.length) {
+          // próxima cena
+          if (pvSceneIdx < ep.scenes.length - 1) {
+            pvSceneIdx++;
+            pvLineIdx = 0;
+            return renderPreviewLine();
+          } else {
+            elScene.textContent = "Fim do episódio 🎉";
+            elLine.textContent = "";
+            elChoices.innerHTML = "";
+            elNext.style.display = "none";
+            return;
+          }
+        }
+
+        const d = dialogues[pvLineIdx];
+        elScene.textContent = sc.title || "(sem título)";
+        elLine.textContent = `${d.character}: ${d.line || ""}`;
+        elChoices.innerHTML = "";
+
+        if (d.choices && d.choices.length) {
+          elNext.style.display = "none";
+          d.choices.forEach((ch) => {
+            if (ch.condition && !checkCond(ch.condition)) return;
+            const b = document.createElement("button");
+            b.textContent = ch.text;
+            b.style =
+              "padding:8px 14px;border:none;border-radius:8px;background:#17a2b8;color:white;cursor:pointer;";
+            b.onclick = () => applyChoice(ch);
+            elChoices.appendChild(b);
+          });
+        } else {
+          elNext.style.display = "inline-block";
+        }
+      }
+
+      function checkCond(cond) {
+        for (const key in cond) {
+          const ops = cond[key];
+          const val = pvVars[key] ?? 0;
+          for (const op in ops) {
+            const cmp = ops[op];
+            if (
+              (op === "gt" && !(val > cmp)) ||
+              (op === "lt" && !(val < cmp)) ||
+              (op === "gte" && !(val >= cmp)) ||
+              (op === "lte" && !(val <= cmp)) ||
+              (op === "eq" && !(val === cmp))
+            )
+              return false;
+          }
+        }
+        return true;
+      }
+      function applyChoice(ch) {
+        if (ch.effects) {
+          for (const k in ch.effects) {
+            pvVars[k] = (pvVars[k] || 0) + ch.effects[k];
+          }
+        }
+        if (typeof ch.next === "number") {
+          pvLineIdx = ch.next;
+        } else {
+          pvLineIdx++;
+        }
+        renderPreviewLine();
+      }
+      elNext.onclick = () => {
+        pvLineIdx++;
+        renderPreviewLine();
+      };
+      elExit.onclick = () => {
+        elModal.style.display = "none";
+        elNext.style.display = "inline-block";
+      };
+
+      /* ===========================
+   HUD Estilizado — Barra Lateral Animada
+=========================== */
+      const elHud = document.getElementById("preview-hud");
+
+      function renderHud() {
+        elHud.innerHTML = "";
+        if (!pvVars || !Object.keys(pvVars).length) return;
+
+        for (const [key, val] of Object.entries(pvVars)) {
+          const wrap = document.createElement("div");
+          wrap.style = `
+      width: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    `;
+
+          const label = document.createElement("div");
+          label.textContent = key.toUpperCase();
+          label.style = `
+      font-size: 12px;
+      opacity: 0.8;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    `;
+
+          const barWrap = document.createElement("div");
+          barWrap.style = `
+      width: 100%;
+      height: 12px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 999px;
+      overflow: hidden;
+    `;
+
+          const bar = document.createElement("div");
+          const normalized = Math.min(Math.max(val, 0), 100); // 0–100
+          bar.style = `
+      width: ${normalized}%;
+      height: 100%;
+      background: linear-gradient(90deg, #ff5f6d, #ffc371);
+      transition: width 0.5s ease;
+    `;
+
+          barWrap.appendChild(bar);
+          wrap.appendChild(label);
+          wrap.appendChild(barWrap);
+          elHud.appendChild(wrap);
+        }
+      }
+
+      // sincronizar HUD com falas e escolhas
+      const oldRender = renderPreviewLine;
+      renderPreviewLine = function () {
+        oldRender();
+        renderHud();
+      };
+
+      const oldChoice = applyChoice;
+      applyChoice = function (ch) {
+        oldChoice(ch);
+        renderHud();
+      };
+    </script>
+  </body>
+</html>
